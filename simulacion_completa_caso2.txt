@@ -1,0 +1,116 @@
+SetGridsize(8192, 384, 1) // Tamaño de la cuadrícula
+SetCellsize(2e-9, 2e-9, 2e-9) // Tamaño de la celda (2 nm x 2 nm x 2 nm)
+
+EdgeSmooth = 8
+
+// Define los rectángulos base para el canal y la unión
+canal := Rect(7600e-9, 256e-9)
+union := Rect(2100e-9, 256e-9)
+
+// Define las posiciones de los canales
+c1 := canal.Transl(-4196e-9, 256e-9, 0) // Canal superior
+c2 := canal.Transl(-4196e-9, -256e-9, 0) // Canal inferior
+c3 := canal.Transl(4196e-9, 0, 0) // Canal derecho
+
+
+u1 := union.rotz(pi/18).Transl(0, -183e-9, 0)
+u2 := union.rotz(-pi/18).Transl(0, 183e-9, 0)
+u := u1.Add(u2) 
+
+
+inversor := c1.Add(c2).Add(c3).Add(u) // 
+SetGeom(inversor)
+SaveAs(geom, "inversor.png") 
+SnapshotAs(geom, "inversor.png")
+
+
+//Usamos el modelo de Slonczewski, desactivamos el torque de ZhangLi
+
+DisableZhangLiTorque = true
+DisableSlonczewskiTorque = false
+
+
+//Introducimos los parámetros del Fe60Co20B20
+
+Msat  = 1.1e6     //Magnetización de saturación [A/m]
+Aex   = 18.5e-12   //Rigidez de intercambio [pJ/m pasados a SI] LUIS USA 12-14 pJ/m
+alpha = 0.004     //Constante de amortiguamiento (adimensional) también he visto 0.007 en algún paper
+
+//Definimos la anisotropía
+
+Ku1 = 8.3177e5             //Constante de anisotropía perpendicular [J/m^3]
+anisU = vector(0, 0, 1)    //Anisotropía en el eje z
+
+//Magnetización inicial (cargada desde el archivo .ovf)
+
+m.LoadFile("m_0inversor_nuevo.ovf")
+
+
+//Definimos las zonas de inyección
+
+inyec := cuboid(32e-9, 256e-9, 2e-9)
+
+defregion(1, inyec.Transl(-1008e-9, 256e-9, 0))  
+defregion(2, inyec.Transl(-1008e-9, -256e-9, 0)) 
+
+//Regiones de medida
+
+for i:=0; i<45; i++{
+
+defregion(3+i,cuboid(4e-9, 32e-9, 2e-9).transl(-780e-9+i*8e-9, 256e-9, 0))
+TableAdd(m.region(3+i))                                                                                   
+}  
+
+
+for i:=0; i<45; i++{
+
+defregion(48+i,cuboid(4e-9, 32e-9, 2e-9).transl(-780e-9+i*8e-9, -256e-9, 0))
+TableAdd(m.region(48+i))                                                                                   
+}  
+
+
+for i:=0; i<45; i++{
+
+defregion(93+i,cuboid(4e-9, 32e-9, 2e-9).transl(1044e-9+i*8e-9, 0, 0))
+TableAdd(m.region(93+i))                                                                                   
+} 
+
+
+//Parámetros de caracterización de la capa
+lambda       = 1
+Pol          = 0.1
+EpsilonPrime = 0
+
+//Dirección del spin de los electrones inyectados
+
+fixedlayer  = vector(-1, 0, 0)
+
+//Definimos la frecuencia de modo normal que usaremos
+
+f := 5.0667784334326e9
+
+//Ahora la inyección de corriente en ambas zonas
+//SEGUNDO CASO: ONDAS EN CONTRAFASE, SEÑAL DE CONTROL
+
+J.SetRegion(1,vector(0, 0, 0))
+J.SetRegion(2,vector(0, 0,(1e12)*sin(2*pi*f*t-pi)))
+
+
+//Guardamos las corrientes en la tabla
+
+TableAdd(J.region(1)) 
+TableAdd(J.region(2)) 
+
+                                                                       
+//Finalmente el guardado de la tabla de datos
+                                                                       
+DTs := 2.5e-12
+timesteps := 10000
+
+tablesave()
+for steps:=0; steps<timesteps; steps++{
+run(DTs)
+tablesave()
+}
+
+
